@@ -1,0 +1,8 @@
+fastapi[all]
+alembic
+sqlalchemy[asyncio]
+asyncpg
+python-dotenv
+uvicorn[standard]
+psycopg2-binary
+email-validator
