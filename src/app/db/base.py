@@ -9,6 +9,8 @@ from typing import Any
 from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase, declared_attr
 
+from app.db.types import UtcDateTime
+
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -30,8 +32,10 @@ class Base(DeclarativeBase):
     """
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+    # Every ``Mapped[datetime]`` becomes a UTC-normalised timestamp, so the
+    # backend cannot change what the application sees.
     type_annotation_map = {
-        datetime: __import__("sqlalchemy").types.DateTime(timezone=True),
+        datetime: UtcDateTime(),
     }
 
     @declared_attr.directive

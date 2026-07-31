@@ -72,6 +72,12 @@ class RateLimitError(AppException):
     message = "Too many requests."
 
 
+class ServiceUnavailableError(AppException):
+    status_code = HTTPStatus.SERVICE_UNAVAILABLE
+    code = "service_unavailable"
+    message = "Service temporarily unavailable."
+
+
 __all__ = [
     "AppException",
     "AuthenticationError",
@@ -79,5 +85,6 @@ __all__ = [
     "ConflictError",
     "NotFoundError",
     "RateLimitError",
+    "ServiceUnavailableError",
     "ValidationFailedError",
 ]

@@ -1,25 +1,30 @@
-"""User CRUD endpoints (v1)."""
+"""User CRUD endpoints (v1).
+
+Handlers stay thin on purpose: validate, delegate to the service, shape the
+response. Rules live in ``app.services.user``; queries live in the repository.
+"""
 
 from __future__ import annotations
 
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import UserServiceDep
-from app.schemas.common import Page, PageParams
+from app.schemas.common import Page, PageParams, problem_responses
 from app.schemas.user import UserCreate, UserPublic, UserUpdate
 
 router = APIRouter()
 
-PageParamsDep = Annotated[PageParams, Depends()]
+PageParamsDep = Annotated[PageParams, Query()]
 
 
 @router.get(
     "",
     response_model=Page[UserPublic],
     summary="List users",
+    responses=problem_responses(422),
 )
 async def list_users(
     page_params: PageParamsDep,
@@ -42,6 +47,7 @@ async def list_users(
     response_model=UserPublic,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new user",
+    responses=problem_responses(409, 422),
 )
 async def create_user(
     payload: UserCreate,
@@ -55,6 +61,7 @@ async def create_user(
     "/{user_id}",
     response_model=UserPublic,
     summary="Retrieve a user by ID",
+    responses=problem_responses(404, 422),
 )
 async def get_user(
     user_id: uuid.UUID,
@@ -68,6 +75,7 @@ async def get_user(
     "/{user_id}",
     response_model=UserPublic,
     summary="Update a user (partial)",
+    responses=problem_responses(404, 409, 422),
 )
 async def update_user(
     user_id: uuid.UUID,
@@ -82,6 +90,7 @@ async def update_user(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a user",
+    responses=problem_responses(404, 422),
 )
 async def delete_user(
     user_id: uuid.UUID,

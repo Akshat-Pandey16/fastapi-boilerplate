@@ -1,6 +1,10 @@
-"""Repository (data-access) layer."""
+"""Repository (data-access) layer.
 
-from app.repositories.base import BaseRepository
-from app.repositories.user import UserRepository
+``protocols`` defines what the service layer may call; ``sql`` and ``mongo``
+hold the implementations. Only the protocol is re-exported here — importing an
+adapter would drag in a driver the deployment may not have installed.
+"""
 
-__all__ = ["BaseRepository", "UserRepository"]
+from app.repositories.protocols import UserRepository
+
+__all__ = ["UserRepository"]

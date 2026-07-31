@@ -1,0 +1,82 @@
+"""Generic async CRUD over a MongoDB collection.
+
+Mirrors ``BaseSqlRepository`` so both backends read the same way. Documents
+store the domain id under ``_id``; ``_to_document`` hides that translation.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pymongo.asynchronous.database import AsyncDatabase
+
+
+class BaseMongoRepository:
+    """CRUD primitives shared by concrete Mongo repositories."""
+
+    collection_name: str
+
+    def __init__(self, database: AsyncDatabase[dict[str, Any]]) -> None:
+        self.collection = database[self.collection_name]
+
+    @staticmethod
+    def _to_document(values: Mapping[str, Any]) -> dict[str, Any]:
+        """Move ``id`` to Mongo's ``_id`` primary key."""
+        document = dict(values)
+        if "id" in document:
+            document["_id"] = document.pop("id")
+        return document
+
+    @staticmethod
+    def _from_document(document: Mapping[str, Any]) -> dict[str, Any]:
+        """Move ``_id`` back to ``id`` for the domain layer."""
+        values = dict(document)
+        values["id"] = values.pop("_id")
+        return values
+
+    async def fetch_one(self, filter_: Mapping[str, Any]) -> dict[str, Any] | None:
+        document = await self.collection.find_one(dict(filter_))
+        return None if document is None else self._from_document(document)
+
+    async def fetch_many(
+        self,
+        *,
+        offset: int = 0,
+        limit: int = 20,
+        sort: Sequence[tuple[str, int]] = (),
+    ) -> list[dict[str, Any]]:
+        cursor = self.collection.find({}).skip(offset).limit(limit)
+        if sort:
+            cursor = cursor.sort(list(sort))
+        return [self._from_document(document) async for document in cursor]
+
+    async def count(self) -> int:
+        return await self.collection.count_documents({})
+
+    async def insert(self, values: Mapping[str, Any]) -> dict[str, Any]:
+        document = self._to_document(values)
+        await self.collection.insert_one(document)
+        return self._from_document(document)
+
+    async def update_by_id(self, id_: Any, changes: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        document = await self.collection.find_one_and_update(
+            {"_id": id_},
+            {"$set": dict(changes)},
+            return_document=True,
+        )
+        return None if document is None else self._from_document(document)
+
+    async def commit(self) -> None:
+        """No-op: single-document writes are already durable in MongoDB.
+
+        Swap in a client session here if you need multi-document transactions.
+        """
+
+    async def delete_by_id(self, id_: Any) -> int:
+        result = await self.collection.delete_one({"_id": id_})
+        return int(result.deleted_count)
+
+
+__all__ = ["BaseMongoRepository"]

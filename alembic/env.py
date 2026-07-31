@@ -28,9 +28,20 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+if not settings.is_sql:
+    raise SystemExit(
+        f"DB_BACKEND={settings.backend.value} has no schema to migrate. "
+        "MongoDB indexes are created at application startup instead."
+    )
+
 
 def _get_url() -> str:
-    return str(settings.database_url)
+    return settings.database_url
+
+
+#: SQLite cannot ALTER most things in place; batch mode rewrites the table
+#: instead. Harmless on the other backends, but only needed here.
+_RENDER_AS_BATCH = settings.is_sqlite
 
 
 def run_migrations_offline() -> None:
@@ -42,6 +53,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        render_as_batch=_RENDER_AS_BATCH,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -53,6 +65,7 @@ def _do_run_migrations(connection: Connection) -> None:
         target_metadata=target_metadata,
         compare_type=True,
         compare_server_default=True,
+        render_as_batch=_RENDER_AS_BATCH,
     )
     with context.begin_transaction():
         context.run_migrations()

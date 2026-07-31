@@ -68,7 +68,7 @@ async def validation_exception_handler(
     logger.info("validation_error", errors=exc.errors())
     return _problem_detail(
         request=request,
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         code="validation_failed",
         message="Request validation failed.",
         details=exc.errors(),
@@ -79,7 +79,7 @@ async def pydantic_validation_handler(request: Request, exc: ValidationError) ->
     logger.info("pydantic_validation_error", errors=exc.errors())
     return _problem_detail(
         request=request,
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         code="validation_failed",
         message="Data validation failed.",
         details=exc.errors(),

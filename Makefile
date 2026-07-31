@@ -1,164 +1,98 @@
-.PHONY: help setup setup-uv setup-env setup-db wait-db reset doctor \
-        install sync lock dev run shell lint format typecheck check test test-cov clean \
-        migrate makemigration downgrade db-revision \
-        docker-build docker-up docker-down docker-logs docker-restart
+.PHONY: help setup install lock dev run shell \
+        format lint typecheck check test test-cov test-all \
+        migrate makemigration downgrade db-revision db-reset \
+        clean doctor
 
-# ---------------------------------------------------------------------------
-# Variables
-# ---------------------------------------------------------------------------
 UV ?= uv
-PYTHON_VERSION ?= 3.13
 PORT ?= 8000
 MSG ?= "auto migration"
-DB_SERVICE ?= db
-DB_WAIT_TIMEOUT ?= 60
 
 # ---------------------------------------------------------------------------
 # Help (default target)
 # ---------------------------------------------------------------------------
-help: ## Show this help message
-	@echo "FastAPI Boilerplate — make targets"
+help: ## Show this help
+	@echo "FastAPI Boilerplate"
 	@echo ""
-	@awk 'BEGIN {FS = ":.*?## "}; /^[a-zA-Z_-]+:.*?## / { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-
-# ---------------------------------------------------------------------------
-# One-shot project bootstrap
-# ---------------------------------------------------------------------------
-setup: setup-uv setup-env install setup-db wait-db migrate ## Bootstrap everything: uv, .env, deps, Postgres, migrations
+	@echo "  First time here?  make setup  →  make dev"
 	@echo ""
-	@echo "✅ Setup complete. Next step: \033[36mmake dev\033[0m"
-
-setup-uv: ## Install uv and pin Python $(PYTHON_VERSION)
-	@if ! command -v $(UV) >/dev/null 2>&1; then \
-		echo "→ uv not found; installing…"; \
-		curl -LsSf https://astral.sh/uv/install.sh | sh; \
-		echo "→ uv installed. Restart your shell or run: source ~/.local/bin/env"; \
-	else \
-		echo "✓ uv already installed ($$($(UV) --version))"; \
-	fi
-	@$(UV) python install $(PYTHON_VERSION)
-
-setup-env: ## Create .env from .env.example if missing
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo "✓ Created .env from .env.example — review and adjust credentials."; \
-	else \
-		echo "✓ .env already exists."; \
-	fi
-
-setup-db: ## Start the Postgres container via docker compose
-	@if ! command -v docker >/dev/null 2>&1; then \
-		echo "✗ docker not found. Install Docker, or point .env at an existing Postgres."; \
-		exit 1; \
-	fi
-	@docker compose up -d $(DB_SERVICE)
-
-wait-db: ## Block until Postgres is accepting connections (timeout: $(DB_WAIT_TIMEOUT)s)
-	@echo "→ Waiting for Postgres to be ready…"
-	@elapsed=0; \
-	until docker compose exec -T $(DB_SERVICE) pg_isready -q >/dev/null 2>&1; do \
-		if [ $$elapsed -ge $(DB_WAIT_TIMEOUT) ]; then \
-			echo "✗ Postgres did not become ready within $(DB_WAIT_TIMEOUT)s."; exit 1; \
-		fi; \
-		sleep 1; elapsed=$$((elapsed + 1)); \
-	done; \
-	echo "✓ Postgres is ready."
-
-reset: ## Wipe Postgres data volume and rerun setup (destructive!)
-	@printf "This will DROP the database volume. Continue? [y/N] "; \
-	read ans; [ "$$ans" = "y" ] || { echo "aborted"; exit 1; }
-	docker compose down -v
-	$(MAKE) setup
-
-doctor: ## Print versions of key tools — handy for bug reports
-	@echo "uv:     $$($(UV) --version 2>/dev/null || echo 'not installed')"
-	@echo "python: $$($(UV) run python --version 2>/dev/null || python3 --version 2>/dev/null || echo 'not installed')"
-	@echo "docker: $$(docker --version 2>/dev/null || echo 'not installed')"
-	@echo "make:   $$(make --version | head -1)"
+	@awk 'BEGIN {FS = ":.*?## "}; /^[a-zA-Z_-]+:.*?## / { printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 # ---------------------------------------------------------------------------
-# Environment management (uv)
+# Getting started
 # ---------------------------------------------------------------------------
-install: ## Create the venv and install runtime + dev + test deps
-	$(UV) sync --all-extras
+setup: ## Set the project up on this machine (safe to re-run)
+	@./scripts/setup.sh
 
-sync: ## Re-sync the venv with the lockfile
-	$(UV) sync --all-extras --frozen
+install: ## Install dependencies only
+	$(UV) sync
 
-lock: ## Refresh uv.lock
+lock: ## Refresh uv.lock after editing pyproject.toml
 	$(UV) lock
 
 # ---------------------------------------------------------------------------
-# Run
+# Running
 # ---------------------------------------------------------------------------
-dev: ## Run the API with auto-reload (development)
-	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port $(PORT)
+dev: ## Run with auto-reload at http://localhost:$(PORT)
+	$(UV) run fastapi dev src/app/main.py --port $(PORT)
 
-run: ## Run the API (production-style, no reload)
-	$(UV) run uvicorn app.main:app --host 0.0.0.0 --port $(PORT)
+run: ## Run using the API_* values from .env (production style)
+	$(UV) run python -m app
 
-shell: ## Drop into a Python shell with the project on the path
+shell: ## Python shell with the project importable
 	$(UV) run python
 
 # ---------------------------------------------------------------------------
-# Code quality
+# Code quality — `check` is what CI runs
 # ---------------------------------------------------------------------------
-format: ## Format code with ruff
+format: ## Reformat the code
 	$(UV) run ruff format src tests
 
-lint: ## Lint code with ruff (auto-fix where possible)
+lint: ## Lint, fixing what can be fixed
 	$(UV) run ruff check --fix src tests
 
-typecheck: ## Static type check with mypy
+typecheck: ## Type-check with mypy (strict)
 	$(UV) run mypy
 
-check: format lint typecheck ## Run formatter, linter, and type checker
+check: format lint typecheck test ## Format, lint, type-check, and test
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-test: ## Run the test suite
+test: ## Run the tests
 	$(UV) run pytest
 
-test-cov: ## Run tests with coverage report
+test-cov: ## Run the tests with a coverage report
 	$(UV) run pytest --cov --cov-report=term-missing --cov-report=xml
 
+test-all: ## Run the tests against every installed backend driver
+	$(UV) run --all-extras pytest
+
 # ---------------------------------------------------------------------------
-# Database migrations
+# Database (not used by MongoDB, which has no schema)
 # ---------------------------------------------------------------------------
-migrate: ## Apply all pending migrations
+migrate: ## Apply pending migrations
 	$(UV) run alembic upgrade head
 
-makemigration: ## Create a new auto-generated migration. Usage: make makemigration MSG="add foo"
+makemigration: ## Create a migration from model changes. Usage: make makemigration MSG="add posts"
 	$(UV) run alembic revision --autogenerate -m $(MSG)
 
-downgrade: ## Roll back one migration
+downgrade: ## Undo the last migration
 	$(UV) run alembic downgrade -1
 
-db-revision: ## Show current DB revision
+db-revision: ## Show the revision the database is on
 	$(UV) run alembic current
 
-# ---------------------------------------------------------------------------
-# Docker
-# ---------------------------------------------------------------------------
-docker-build: ## Build the API image
-	docker compose build
-
-docker-up: ## Start the stack (detached)
-	docker compose up -d
-
-docker-down: ## Stop and remove containers
-	docker compose down
-
-docker-logs: ## Tail logs from all services
-	docker compose logs -f
-
-docker-restart: ## Restart the API container
-	docker compose restart api
+db-reset: ## Drop everything and re-apply all migrations (destructive)
+	@printf "This deletes all data in the configured database. Continue? [y/N] "; \
+	read ans; [ "$$ans" = "y" ] || { echo "aborted"; exit 1; }
+	$(UV) run alembic downgrade base
+	$(UV) run alembic upgrade head
 
 # ---------------------------------------------------------------------------
 # Maintenance
 # ---------------------------------------------------------------------------
+doctor: ## Print tool versions and the configured backend — useful in bug reports
+	@echo "uv:      $$($(UV) --version 2>/dev/null || echo 'not installed')"
+	@echo "python:  $$($(UV) run python --version 2>/dev/null || echo 'not installed')"
+	@echo "backend: $$($(UV) run python -c 'from app.core.config import settings; print(settings.backend.value)' 2>/dev/null || echo 'unknown — is .env present?')"
+
 clean: ## Remove caches and build artifacts
 	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .mypy_cache -o -name .ruff_cache \) -prune -exec rm -rf {} +
 	find . -type f -name "*.py[co]" -delete

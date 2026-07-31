@@ -45,6 +45,12 @@ htmlcov/
 *.log
 logs/
 
+# Local SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
 # Editor / IDE
 .idea/
 .vscode/
@@ -58,11 +64,7 @@ Thumbs.db
 Thumbs.db
 ehthumbs.db
 
-# Alembic versions are project-specific; commit them when you start tracking history
-# alembic/versions/*.py
+# Migrations are part of the source: they are committed, not ignored.
 
 # Jupyter
 .ipynb_checkpoints/
-
-# Docker
-.docker/

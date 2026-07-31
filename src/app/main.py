@@ -53,6 +53,8 @@ def _configure_middleware(app: FastAPI) -> None:
             allow_credentials=settings.cors_allow_credentials,
             allow_methods=settings.cors_allow_methods,
             allow_headers=settings.cors_allow_headers,
+            # Without this, browser JS cannot read the request id we echo back.
+            expose_headers=settings.cors_expose_headers,
         )
 
 
