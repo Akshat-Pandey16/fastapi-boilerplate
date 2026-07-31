@@ -8,7 +8,7 @@ import pytest
 
 pytest.importorskip("pymongo", reason="the mongodb extra is not installed")
 
-from app.repositories.mongo.base import BaseMongoRepository, bson_utcnow  # noqa: E402
+from app.repositories.mongo.base import BaseMongoRepository, bson_utcnow
 
 
 @pytest.mark.unit
