@@ -140,6 +140,8 @@ jobs:
       # No uv, no database, no .env — exactly what a new contributor has.
       - name: Run setup
         run: ./scripts/setup.sh --yes
+      - name: Put the uv it just installed on PATH for later steps
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: The app must start and answer
         run: |
           uv run python -m app &

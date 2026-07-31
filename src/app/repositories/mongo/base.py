@@ -7,10 +7,22 @@ store the domain id under ``_id``; ``_to_document`` hides that translation.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pymongo.asynchronous.database import AsyncDatabase
+
+
+def bson_utcnow() -> datetime:
+    """``datetime.now(UTC)`` at the precision BSON can actually store.
+
+    BSON timestamps are milliseconds. Without this truncation a repository
+    would return a microsecond-precision value that differs from the one the
+    next read gets back — the same document appearing to change on its own.
+    """
+    now = datetime.now(UTC)
+    return now.replace(microsecond=now.microsecond // 1000 * 1000)
 
 
 class BaseMongoRepository:
@@ -31,10 +43,17 @@ class BaseMongoRepository:
 
     @staticmethod
     def _from_document(document: Mapping[str, Any]) -> dict[str, Any]:
-        """Move ``_id`` back to ``id`` for the domain layer."""
+        """Move ``_id`` back to ``id``, and BSON's timezone to a plain UTC one.
+
+        The driver returns ``bson.tz_util.FixedOffset``; converting keeps
+        timestamps indistinguishable from what the SQL backends return.
+        """
         values = dict(document)
         values["id"] = values.pop("_id")
-        return values
+        return {
+            key: value.astimezone(UTC) if isinstance(value, datetime) else value
+            for key, value in values.items()
+        }
 
     async def fetch_one(self, filter_: Mapping[str, Any]) -> dict[str, Any] | None:
         document = await self.collection.find_one(dict(filter_))

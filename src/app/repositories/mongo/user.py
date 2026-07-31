@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.domain.user import UserRecord
-from app.repositories.mongo.base import BaseMongoRepository
+from app.repositories.mongo.base import BaseMongoRepository, bson_utcnow
 
 if TYPE_CHECKING:
     from pymongo.asynchronous.database import AsyncDatabase
@@ -56,14 +55,14 @@ class MongoUserRepository(BaseMongoRepository):
         return [self._to_record(document) for document in documents]
 
     async def create(self, values: Mapping[str, Any]) -> UserRecord:
-        now = datetime.now(UTC)
+        now = bson_utcnow()
         document = await self.insert(
             {"id": uuid.uuid4(), **values, "created_at": now, "updated_at": now}
         )
         return self._to_record(document)
 
     async def update(self, user_id: uuid.UUID, changes: Mapping[str, Any]) -> UserRecord | None:
-        document = await self.update_by_id(user_id, {**changes, "updated_at": datetime.now(UTC)})
+        document = await self.update_by_id(user_id, {**changes, "updated_at": bson_utcnow()})
         return None if document is None else self._to_record(document)
 
     async def delete(self, user_id: uuid.UUID) -> bool:

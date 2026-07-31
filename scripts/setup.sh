@@ -139,8 +139,8 @@ port_open() {
     # port_open HOST PORT — true if something is listening.
     local host="$1" port="$2"
     if has nc; then nc -z -w2 "$host" "$port" >/dev/null 2>&1
-    elif has bash; then timeout 2 bash -c ">/dev/tcp/$host/$port" >/dev/null 2>&1
-    else return 1
+    elif has timeout; then timeout 2 bash -c ">/dev/tcp/$host/$port" >/dev/null 2>&1
+    else bash -c ">/dev/tcp/$host/$port" >/dev/null 2>&1  # macOS has no `timeout`
     fi
 }
 
@@ -155,7 +155,9 @@ detect_backend() {
 }
 
 if [ "$DB_CHOICE" = "auto" ]; then
-    info "Looking for a database server on $DB_HOST…"
+    # Braces are required: bash 3.2 (macOS) folds a following multibyte
+    # character into the variable name.
+    info "Looking for a database server on ${DB_HOST}..."
     DB_BACKEND="$(detect_backend)"
     if [ "$DB_BACKEND" = "sqlite" ]; then
         info "No database server found — using SQLite (a file, no server needed)"
@@ -190,7 +192,8 @@ step "Writing .env"
 generate_secret() {
     if has openssl; then openssl rand -base64 48 | tr -d '\n/+=' | cut -c1-64
     elif has python3; then python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
-    else date +%s | sha256sum 2>/dev/null | cut -c1-64 || echo "change-me-$(date +%s)"
+    elif has shasum; then date +%s | shasum -a 256 | cut -c1-64
+    else echo "change-me-$(date +%s)"
     fi
 }
 
